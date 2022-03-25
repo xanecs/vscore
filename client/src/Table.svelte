@@ -3,7 +3,7 @@
 	import { setScore } from './lib/utils';
 	let sets = [0, 0];
 	  $: {
-	    sets = setScore($state.state.sets)
+	    sets = setScore($state.state.sets, false);
 	  }
 </script>
 <div class="wrapper">
