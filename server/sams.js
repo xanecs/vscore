@@ -1,5 +1,6 @@
 const ws = require('reconnecting-ws');
 const EventEmitter = require('events');
+const fs = require('fs');
 
 let state = {
 	teamNames: ["A", "B"],
@@ -19,6 +20,28 @@ function currentState() {
 function setColors(color0, color1) {
 	state.teamColors = [color0, color1];
 	emitter.emit('state', state);
+	fs.writeFile('colors.json', JSON.stringify([color0, color1]), err => {
+		if (err) {
+			console.error('Could not persist colors to disk');
+		}
+	});
+}
+
+function loadColors() {
+	fs.readFile('colors.json', (err, data) => {
+		if (err) {
+			console.error(err)
+			console.error('If you did not expect colors to be loaded, this is fine');
+			return;
+		}
+		let ob = JSON.parse(data.toString())
+		state.teamColors = ob;
+	});
+}
+
+function processState(payload) {
+	state.serving = payload.serving === 'team2' ? 1 : 0;
+	state.sets = payload.matchSets.map((s) => [s.setScore.team1, s.setScore.team2]);
 }
 
 function startSams(id) {
@@ -36,19 +59,22 @@ function startSams(id) {
 					}
 				}
 			}
+			if (msg.payload.matchStates[id]) {
+				processState(msg.payload.matchStates[id]);
+			}
 			emitter.emit('state', state);
 			if (!found) {
 				console.error(`No match with id ${id} found.`);
 				process.exit(1);
 			}
 		} else if (msg.type === 'MATCH_UPDATE' && msg.payload.matchUuid === id) {
-			state.serving = msg.payload.serving === 'team2' ? 1 : 0;
-			state.sets = msg.payload.matchSets.map((s) => [s.setScore.team1, s.setScore.team2]);
+			processState(msg.payload);
 			emitter.emit('state', state);
 		}
 		
 	});
 }
+loadColors();
 
 module.exports = {
 	startSams,
